@@ -12,37 +12,63 @@
  *   http://www.opensource.org/licenses/mit-license.php
  *   http://www.gnu.org/licenses/gpl.html
  *
+ *  5/20/2010 - Jesse Baird <jebaird@gmail.com> 
+                http://jebaird.com/dev/jquery-notify/
+                - added 
+                    - templates can now be passed throught the options, default templates are; default, hightlight and error
+                    - defaultTemplate option
+                    - theme roller support 
+ *
+ *
 */
 (function($){
-
 $.widget("ui.notify", {
 	options: {
 		speed: 500,
 		expires: 5000,
-		stack: 'below'
+		stack: 'below',
+        defaultTemplate:'default',//if no template is specified then this one will be used
+        templates:{
+            highlight:'<div><div class="ui-state-highlight ui-corner-all"><a href="#" role="button" class="ui-notify-close ui-corner-all ui-state-default" title="close"><span class="ui-icon ui-icon-closethick">close</span></a><div class="ui-widget-header ui-corner-top">#{title}</div><span class="ui-icon ui-icon-info"></span><div class="ui-notify-highlight-content">#{text}</div></div></div>',
+            error:'<div class="ui-state-error"><div class="ui-state-error ui-corner-all"> <a href="#" role="button" class="ui-notify-close ui-corner-all ui-state-default" title="close"><span class="ui-icon ui-icon-closethick">close</span></a><div class="ui-widget-header ui-corner-top">#{title}</div><span class="ui-icon ui-icon-alert"></span><div class="ui-notify-error-content">#{text}</div></div></div>',
+            'default':'<div><a href="#" role="button" class="ui-notify-close ui-corner-all ui-state-default" title="close"><span class="ui-icon ui-icon-closethick">close</span></a><div class="ui-widget-header ui-corner-top">#{title}</div><div class="ui-widget-content ui-corner-bottom">#{text}</div></div>'
+        }
 	},
 	_create: function(){
 		var self = this;
 		this.templates = {};
 		this.keys = [];
-		
+        
+        
+        //append the templates provided throught the options and default to our target, this way we keep backwards compatiblity with older versions
+        $.each(self.options.templates,function(id,template){
+           self.element.prepend($(template).attr('id',id)); 
+        });
 		// build and save templates
-		this.element.addClass("ui-notify").children().addClass("ui-notify-message").each(function(i){
+		this.element.addClass("ui-notify ui-widget").children().addClass("ui-notify-message ui-widget ui-corner-all").each(function(i){
 			var key = this.id || i;
 			self.keys.push(key);
 			self.templates[key] = $(this).removeAttr("id").wrap("<div></div>").parent().html(); // because $(this).andSelf().html() no workie
 		}).end().empty();
+        
+        //bind the close button hover 
+        $('.ui-notify-close').live('mouseover mouseout', function(event) {
+            if (event.type == 'mouseover') {
+                $(this).addClass('ui-state-hover');
+            } else {
+                $(this).removeClass('ui-state-hover');
+            }
+        });
 		
 	},
-	create: function(template, msg, opts){
+	create: function(msg, opts,template){
 		if(typeof template === "object"){
 			opts = msg;
 			msg = template;
 			template = null;
 		}
-		
 		// return a new notification instance
-		return new $.ui.notify.instance(this)._create(msg, $.extend({}, this.options, opts), this.templates[ template || this.keys[0]]);
+		return new $.ui.notify.instance(this)._create(msg, $.extend({}, this.options, opts), (typeof this.templates[template] =='undefined')?this.templates[this.options.defaultTemplate] : this.templates[ template] );
 	}
 });
 
@@ -71,6 +97,15 @@ $.extend($.ui.notify.instance.prototype, {
 			
 			// close link
 			closelink = m.find("a.ui-notify-close");
+            
+            //check does the header have text in it
+            header = m.find('.ui-widget-header');
+            
+            if(header.text() == ''){
+                header.remove();
+                //add corner all to the content so we dont end up with square corners on top
+                m.find('.ui-widget-content').addClass('ui-corner-all');
+            }
 		
 		// fire beforeopen event
 		if(this._trigger("beforeopen") === false){
@@ -97,7 +132,7 @@ $.extend($.ui.notify.instance.prototype, {
 		this.open();
 		
 		// auto expire?
-		if(typeof options.expires === "number"){
+		if(options.expires){
 			window.setTimeout(function(){
 				self.close();
 			}, options.expires);
@@ -110,7 +145,7 @@ $.extend($.ui.notify.instance.prototype, {
 		this.isOpen = false;
 		
 		this.element.fadeTo(speed, 0).slideUp(speed, function(){
-			self._trigger("close");
+            self._trigger("close");            
 		});
 		
 		return this;
